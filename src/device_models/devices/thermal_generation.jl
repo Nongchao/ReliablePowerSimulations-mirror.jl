@@ -87,8 +87,8 @@ function PSI.add_constraints!(
     ::Type{OutageTimeConstraint},
     devices::IS.FlattenIteratorWrapper{U},
     ::PSI.DeviceModel{U, V},
-    ::Type{<:PM.AbstractPowerModel},
-) where {U <: PSY.ThermalGen, V <: Union{ThermalStandardUCOutages, ThermalBasicUCOutages}}
+    network_model::PSI.NetworkModel{X},
+) where {U <: PSY.ThermalGen, V <: Union{ThermalStandardUCOutages, ThermalBasicUCOutages}, X <: PM.AbstractPowerModel}
     # Use getter functions that don't require creating the keys here
     time_steps = PSI.get_time_steps(container)
     device_names = [PSY.get_name(d) for d in devices]
@@ -189,8 +189,8 @@ function PSI.add_constraints!(
     ::Type{OutageRampConstraint},
     devices::IS.FlattenIteratorWrapper{U},
     model::PSI.DeviceModel{U, V},
-    W::Type{<:PM.AbstractPowerModel},
-) where {U <: PSY.ThermalGen, V <: Union{ThermalStandardUCOutages, ThermalBasicUCOutages}}
+    ::PSI.NetworkModel{W},
+) where {U <: PSY.ThermalGen, V <: Union{ThermalStandardUCOutages, ThermalBasicUCOutages}, W <: PM.AbstractPowerModel,}
     add_semicontinuous_ramp_constraints_outages!(
         container,
         OutageRampConstraint,
@@ -207,8 +207,8 @@ function PSI.add_constraints!(
     T::Type{OutageRampConstraint},
     devices::IS.FlattenIteratorWrapper{U},
     model::PSI.DeviceModel{U, V},
-    W::Type{<:PM.AbstractPowerModel},
-) where {U <: PSY.ThermalGen, V <: PSI.AbstractThermalDispatchFormulation}
+    ::PSI.NetworkModel{W},
+) where {U <: PSY.ThermalGen, V <: PSI.AbstractThermalDispatchFormulation, W <: PM.AbstractPowerModel}
     device_linear_rateofchange_outages!(
         container,
         T,
@@ -250,9 +250,9 @@ function PSI.add_constraints!(
     T::Type{OutageCommitmentConstraint},
     devices::IS.FlattenIteratorWrapper{V},
     model::PSI.DeviceModel{V, W},
-    X::Type{<:PM.AbstractPowerModel},
-) where {V <: PSY.ThermalGen, W <: Union{ThermalStandardUCOutages, ThermalBasicUCOutages}}
-    device_outage_parameter!(container, T, devices, model, X)
+    network_model::PSI.NetworkModel{X},
+) where {V <: PSY.ThermalGen, W <: Union{ThermalStandardUCOutages, ThermalBasicUCOutages}, X <: PM.AbstractPowerModel}
+    device_outage_parameter!(container, T, devices, model, network_model)
 
     return
 end
@@ -262,9 +262,9 @@ function PSI.add_constraints!(
     T::Type{OutageUpperBoundConstraint},
     devices::IS.FlattenIteratorWrapper{V},
     model::PSI.DeviceModel{V, W},
-    X::Type{<:PM.AbstractPowerModel},
-) where {V <: PSY.ThermalGen, W <: AbstractThermalOutageDispatchFormulation}
-    device_outage_ub_parameter!(container, T, PSI.ActivePowerVariable, devices, model, X)
+    network_model::PSI.NetworkModel{X},
+) where {V <: PSY.ThermalGen, W <: AbstractThermalOutageDispatchFormulation, X <: PM.AbstractPowerModel}
+    device_outage_ub_parameter!(container, T, PSI.ActivePowerVariable, devices, model, network_model)
     return
 end
 
@@ -342,8 +342,8 @@ function PSI.add_constraints!(
     U::Type{<:Union{PSI.VariableType, PSI.ExpressionType}},
     devices::IS.FlattenIteratorWrapper{V},
     model::PSI.DeviceModel{V, W},
-    X::Type{<:PM.AbstractPowerModel},
-) where {V <: PSY.ThermalGen, W <: AbstractThermalOutageDispatchFormulation}
+    network_model::PSI.NetworkModel{X},
+) where {V <: PSY.ThermalGen, W <: AbstractThermalOutageDispatchFormulation, X <: PM.AbstractPowerModel}
     if !has_semicontinuous_outage_feedforward(model, U)
         PSI.add_range_constraints!(container, T, U, devices, model, X)
     end
@@ -411,18 +411,20 @@ function PSI._add_pwl_term!(
     # Re-scale breakpoints by Basepower
     name = PSY.get_name(component)
 
-    is_power_data_compact = PSI._check_pwl_compact_data(component, data, base_power)
+    compact_status = PSI.validate_compact_pwl_data(component, data, base_power)
 
-    if !PSI.uses_compact_power(component, V()) && is_power_data_compact
+    if !PSI.uses_compact_power(component, V()) && compact_status == PSI.COMPACT_PWL_STATUS.VALID
         error(
             "The data provided is not compatible with formulation $V. Use a formulation compatible with Compact Cost Functions",
         )
         # data = _convert_to_full_variable_cost(data, component)
-    elseif PSI.uses_compact_power(component, V()) && !is_power_data_compact
+    elseif PSI.uses_compact_power(component, V()) && compact_status != PSI.COMPACT_PWL_STATUS.VALID
+        @warn(
+            "The cost data provided is not in compact form. Will atempt to convert. Errors may occur."
+        )
         data = PSI._convert_to_compact_variable_cost(data)
     else
-        @debug PSI.uses_compact_power(component, V()) name T V
-        @debug is_power_data_compact name T V
+        @debug PSI.uses_compact_power(component, V()) compact_status name T V
     end
 
     slopes = PSY.get_slopes(data)

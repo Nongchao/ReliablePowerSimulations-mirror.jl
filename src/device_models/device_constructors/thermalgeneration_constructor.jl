@@ -6,9 +6,13 @@ function PSI.construct_device!(
     sys::PSY.System,
     ::PSI.ArgumentConstructStage,
     model::PSI.DeviceModel{T, D},
-    ::Type{S},
-) where {T <: PSY.ThermalGen, D <: ThermalStandardUCOutages, S <: PM.AbstractPowerModel}
-    devices = PSI.get_available_components(T, sys)
+    network_model::PSI.NetworkModel{<:PM.AbstractPowerModel},
+) where {
+    T <: PSY.ThermalGen,
+     D <: ThermalStandardUCOutages,
+     }
+
+    devices = PSI.get_available_components(T, sys, PSI.get_attribute(model, "filter_function"))
 
     PSI.add_variables!(container, PSI.ActivePowerVariable, devices, D())
     PSI.add_variables!(container, PSI.ReactivePowerVariable, devices, D())
@@ -31,7 +35,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_to_expression!(
         container,
@@ -39,7 +43,7 @@ function PSI.construct_device!(
         PSI.ReactivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
 
     PSI.add_expressions!(container, PSI.ProductionCostExpression, devices, model)
@@ -50,7 +54,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_to_expression!(
         container,
@@ -58,7 +62,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
     return
 end
@@ -70,10 +74,10 @@ function PSI.construct_device!(
     container::PSI.OptimizationContainer,
     sys::PSY.System,
     ::PSI.ModelConstructStage,
-    model::PSI.DeviceModel{T, D},
-    ::Type{S},
-) where {T <: PSY.ThermalGen, D <: ThermalStandardUCOutages, S <: PM.AbstractPowerModel}
-    devices = PSI.get_available_components(T, sys)
+    model::PSI.DeviceModel{T, <: ThermalStandardUCOutages},
+    network_model::PSI.NetworkModel{<:PM.AbstractPowerModel},
+) where {T <: PSY.ThermalGen}
+    devices = PSI.get_available_components(T, sys, PSI.get_attribute(model, "filter_function"))
 
     PSI.add_constraints!(
         container,
@@ -81,7 +85,7 @@ function PSI.construct_device!(
         PSI.ActivePowerRangeExpressionLB,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_constraints!(
         container,
@@ -89,7 +93,7 @@ function PSI.construct_device!(
         PSI.ActivePowerRangeExpressionUB,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_constraints!(
         container,
@@ -97,17 +101,17 @@ function PSI.construct_device!(
         PSI.ReactivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
-    PSI.add_constraints!(container, PSI.CommitmentConstraint, devices, model, S)
+    PSI.add_constraints!(container, PSI.CommitmentConstraint, devices, model, network_model)
     # PSI.add_constraints!(container, PSI.RampConstraint, devices, model, S)
     # PSI.add_constraints!(container, PSI.DurationConstraint, devices, model, S)
 
-    PSI.add_constraints!(container, OutageCommitmentConstraint, devices, model, S)
-    PSI.add_constraints!(container, OutageRampConstraint, devices, model, S)
-    PSI.add_constraints!(container, OutageTimeConstraint, devices, model, S)
+    PSI.add_constraints!(container, OutageCommitmentConstraint, devices, model, network_model)
+    PSI.add_constraints!(container, OutageRampConstraint, devices, model, network_model)
+    PSI.add_constraints!(container, OutageTimeConstraint, devices, model, network_model)
 
-    PSI.objective_function!(container, devices, model, S)
+    PSI.objective_function!(container, devices, model, PSI.get_network_formulation(network_model))
     PSI.add_constraint_dual!(container, sys, model)
     return
 end
@@ -120,13 +124,12 @@ function PSI.construct_device!(
     sys::PSY.System,
     ::PSI.ArgumentConstructStage,
     model::PSI.DeviceModel{T, D},
-    ::Type{S},
+    network_model::PSI.NetworkModel{<:PM.AbstractActivePowerModel},
 ) where {
     T <: PSY.ThermalGen,
     D <: ThermalStandardUCOutages,
-    S <: PM.AbstractActivePowerModel,
 }
-    devices = PSI.get_available_components(T, sys)
+    devices = PSI.get_available_components(T, sys, PSI.get_attribute(model, "filter_function"))
 
     PSI.add_variables!(container, PSI.ActivePowerVariable, devices, D())
     PSI.add_variables!(container, PSI.OnVariable, devices, D())
@@ -148,7 +151,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
 
     PSI.add_expressions!(container, PSI.ProductionCostExpression, devices, model)
@@ -159,7 +162,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_to_expression!(
         container,
@@ -167,7 +170,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
     return
 end
@@ -179,21 +182,18 @@ function PSI.construct_device!(
     container::PSI.OptimizationContainer,
     sys::PSY.System,
     ::PSI.ModelConstructStage,
-    model::PSI.DeviceModel{T, D},
-    ::Type{S},
+    model::PSI.DeviceModel{T, <: ThermalStandardUCOutages},
+    network_model::PSI.NetworkModel{<:PM.AbstractActivePowerModel},
 ) where {
-    T <: PSY.ThermalGen,
-    D <: ThermalStandardUCOutages,
-    S <: PM.AbstractActivePowerModel,
-}
-    devices = PSI.get_available_components(T, sys)
+    T <: PSY.ThermalGen}
+    devices = PSI.get_available_components(T, sys, PSI.get_attribute(model, "filter_function"))
     PSI.add_constraints!(
         container,
         PSI.ActivePowerVariableLimitsConstraint,
         PSI.ActivePowerRangeExpressionLB,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_constraints!(
         container,
@@ -201,18 +201,18 @@ function PSI.construct_device!(
         PSI.ActivePowerRangeExpressionUB,
         devices,
         model,
-        S,
+        network_model,
     )
 
-    PSI.add_constraints!(container, PSI.CommitmentConstraint, devices, model, S)
+    PSI.add_constraints!(container, PSI.CommitmentConstraint, devices, model, network_model)
     # PSI.add_constraints!(container, PSI.RampConstraint, devices, model, S)
     # PSI.add_constraints!(container, PSI.DurationConstraint, devices, model, S)
 
-    PSI.add_constraints!(container, OutageCommitmentConstraint, devices, model, S)
-    PSI.add_constraints!(container, OutageRampConstraint, devices, model, S)
-    PSI.add_constraints!(container, OutageTimeConstraint, devices, model, S)
+    PSI.add_constraints!(container, OutageCommitmentConstraint, devices, model, network_model)
+    PSI.add_constraints!(container, OutageRampConstraint, devices, model, network_model)
+    PSI.add_constraints!(container, OutageTimeConstraint, devices, model, network_model)
 
-    PSI.objective_function!(container, devices, model, S)
+    PSI.objective_function!(container, devices, model, PSI.get_network_formulation(network_model))
 
     PSI.add_constraint_dual!(container, sys, model)
     return
@@ -629,9 +629,9 @@ function PSI.construct_device!(
     sys::PSY.System,
     ::PSI.ArgumentConstructStage,
     model::PSI.DeviceModel{T, D},
-    ::Type{S},
-) where {T <: PSY.ThermalGen, D <: ThermalRampLimitedOutages, S <: PM.AbstractPowerModel}
-    devices = PSI.get_available_components(T, sys)
+    network_model::PSI.NetworkModel{<:PM.AbstractPowerModel},
+) where {T <: PSY.ThermalGen, D <: ThermalRampLimitedOutages}
+    devices = PSI.get_available_components(T, sys, PSI.get_attribute(model, "filter_function"))
 
     PSI.add_variables!(container, PSI.ActivePowerVariable, devices, D())
     PSI.add_variables!(container, PSI.ReactivePowerVariable, devices, D())
@@ -648,7 +648,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_to_expression!(
         container,
@@ -656,7 +656,7 @@ function PSI.construct_device!(
         PSI.ReactivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
 
     PSI.add_expressions!(container, PSI.ProductionCostExpression, devices, model)
@@ -667,7 +667,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_to_expression!(
         container,
@@ -675,7 +675,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
 
     PSI.add_feedforward_arguments!(container, model, devices)
@@ -687,9 +687,9 @@ function PSI.construct_device!(
     sys::PSY.System,
     ::PSI.ModelConstructStage,
     model::PSI.DeviceModel{T, D},
-    ::Type{S},
-) where {T <: PSY.ThermalGen, D <: ThermalRampLimitedOutages, S <: PM.AbstractPowerModel}
-    devices = PSI.get_available_components(T, sys)
+    network_model::PSI.NetworkModel{<:PM.AbstractPowerModel},
+) where {T <: PSY.ThermalGen, D <: ThermalRampLimitedOutages}
+    devices = PSI.get_available_components(T, sys, PSI.get_attribute(model, "filter_function"))
 
     PSI.add_constraints!(
         container,
@@ -697,7 +697,7 @@ function PSI.construct_device!(
         PSI.ActivePowerRangeExpressionLB,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_constraints!(
         container,
@@ -705,7 +705,7 @@ function PSI.construct_device!(
         PSI.ActivePowerRangeExpressionUB,
         devices,
         model,
-        S,
+        network_model,
     )
 
     PSI.add_constraints!(
@@ -714,16 +714,16 @@ function PSI.construct_device!(
         PSI.ReactivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
 
     # PSI.add_constraints!(container, OutageCommitmentConstraint, devices, model, S)
 
-    PSI.add_constraints!(container, OutageRampConstraint, devices, model, S)
+    PSI.add_constraints!(container, OutageRampConstraint, devices, model, network_model)
 
     PSI.add_feedforward_constraints!(container, model, devices)
 
-    PSI.objective_function!(container, devices, model, S)
+    PSI.objective_function!(container, devices, model, PSI.get_network_formulation(network_model))
     PSI.add_constraint_dual!(container, sys, model)
     return
 end
@@ -733,13 +733,12 @@ function PSI.construct_device!(
     sys::PSY.System,
     ::PSI.ArgumentConstructStage,
     model::PSI.DeviceModel{T, D},
-    ::Type{S},
+    network_model::PSI.NetworkModel{<:PM.AbstractActivePowerModel},
 ) where {
     T <: PSY.ThermalGen,
     D <: ThermalRampLimitedOutages,
-    S <: PM.AbstractActivePowerModel,
 }
-    devices = PSI.get_available_components(T, sys)
+    devices = PSI.get_available_components(T, sys, PSI.get_attribute(model, "filter_function"))
 
     PSI.add_variables!(container, PSI.ActivePowerVariable, devices, D())
     # PSI.add_variables!(container, OutageVariable, devices, D())
@@ -755,7 +754,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
 
     PSI.add_expressions!(container, PSI.ProductionCostExpression, devices, model)
@@ -766,7 +765,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_to_expression!(
         container,
@@ -774,7 +773,7 @@ function PSI.construct_device!(
         PSI.ActivePowerVariable,
         devices,
         model,
-        S,
+        network_model,
     )
 
     PSI.add_feedforward_arguments!(container, model, devices)
@@ -786,13 +785,12 @@ function PSI.construct_device!(
     sys::PSY.System,
     ::PSI.ModelConstructStage,
     model::PSI.DeviceModel{T, D},
-    ::Type{S},
+    network_model::PSI.NetworkModel{<:PM.AbstractActivePowerModel},
 ) where {
     T <: PSY.ThermalGen,
     D <: ThermalRampLimitedOutages,
-    S <: PM.AbstractActivePowerModel,
 }
-    devices = PSI.get_available_components(T, sys)
+    devices = PSI.get_available_components(T, sys, PSI.get_attribute(model, "filter_function"))
 
     PSI.add_constraints!(
         container,
@@ -800,7 +798,7 @@ function PSI.construct_device!(
         PSI.ActivePowerRangeExpressionLB,
         devices,
         model,
-        S,
+        network_model,
     )
     PSI.add_constraints!(
         container,
@@ -808,14 +806,14 @@ function PSI.construct_device!(
         PSI.ActivePowerRangeExpressionUB,
         devices,
         model,
-        S,
+        network_model,
     )
 
-    PSI.add_constraints!(container, OutageRampConstraint, devices, model, S)
+    PSI.add_constraints!(container, OutageRampConstraint, devices, model, network_model)
 
     PSI.add_feedforward_constraints!(container, model, devices)
 
-    PSI.objective_function!(container, devices, model, S)
+    PSI.objective_function!(container, devices, model, PSI.get_network_formulation(network_model))
     return
 end
 

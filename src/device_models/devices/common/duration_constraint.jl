@@ -28,13 +28,15 @@ function device_duration_look_ahead_outage!(
         meta = "dn",
     )
 
-    param = PSI.get_parameter_array(container, OutageTimeSeriesParameter(), T)
+    param_container = PSI.get_parameter(container, OutageTimeSeriesParameter(), T)
+
     multiplier =
         PSI.get_parameter_multiplier_array(container, OutageTimeSeriesParameter(), T)
 
     for t in time_steps
         for (ix, ic) in enumerate(initial_duration[:, 1])
             name = PSI.get_component_name(ic)
+            param = PSI.get_parameter_column_refs(param_container, name)
             # Minimum Up-time Constraint
             expr_up = JuMP.GenericAffExpr{Float64, JuMP.VariableRef}(0)
             for i in (t - duration_data[ix].up + 1):t
@@ -49,7 +51,7 @@ function device_duration_look_ahead_outage!(
             con_up[name, t] = JuMP.@constraint(
                 container.JuMPmodel,
                 varstop[name, t] * duration_data[ix].up <=
-                expr_up + (1 - param[name, t]) * duration_data[ix].up
+                expr_up + (1 - param[t]) * duration_data[ix].up
             )
 
             # Minimum Down-time Constraint
@@ -66,12 +68,12 @@ function device_duration_look_ahead_outage!(
             if t == 1
                 expr_dn += (1 - PSI.get_value(initial_duration[ix, 3])) * duration_data[ix].down
             else
-                expr_dn += (1 - param[name, t - 1]) * duration_data[ix].down
+                expr_dn += (1 - param[t - 1]) * duration_data[ix].down
             end
             con_down[name, t] = JuMP.@constraint(
                 container.JuMPmodel,
                 varstart[name, t] * duration_data[ix].down <=
-                expr_dn + (1 - param[name, t]) * duration_data[ix].down
+                expr_dn + (1 - param[t]) * duration_data[ix].down
             )
         end
     end
@@ -107,14 +109,16 @@ function device_duration_parameters_outage!(
         time_steps,
         meta = "dn",
     )
-    param = PSI.get_parameter_array(container, OutageTimeSeriesParameter(), T)
+
+    param_container = PSI.get_parameter(container, OutageTimeSeriesParameter(), T)
+
     multiplier =
         PSI.get_parameter_multiplier_array(container, OutageTimeSeriesParameter(), T)
 
     for t in time_steps
         for (ix, ic) in enumerate(initial_duration[:, 1])
             name = PSI.get_component_name(ic)
-
+            param = PSI.get_parameter_column_refs(param_container, name)
             # Minimum Up-time Constraint
             expr_up = JuMP.GenericAffExpr{Float64, JuMP.VariableRef}(0)
             for i in (t - duration_data[ix].up + 1):t
@@ -132,7 +136,7 @@ function device_duration_parameters_outage!(
                 varstop[name, t] * duration_data[ix].up <=
                 expr_up + (
                     1 * duration_data[ix].up -
-                    param[name, t] * duration_data[ix].up
+                    param[t] * duration_data[ix].up
                 )
             )
 
@@ -156,7 +160,7 @@ function device_duration_parameters_outage!(
             else
                 expr_dn += (
                     duration_data[ix].down -
-                    param[name, t - 1] * duration_data[ix].down
+                    param[t - 1] * duration_data[ix].down
                 )
             end
             con_down[name, t] = JuMP.@constraint(

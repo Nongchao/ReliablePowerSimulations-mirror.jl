@@ -1,5 +1,5 @@
-struct BookKeepingwReservationOutage <: PSI.AbstractStorageFormulation end
-struct EndOfPeriodEnergyTargetOutage <: PSI.AbstractEnergyManagement end
+struct BookKeepingwReservationOutage <: SSI.AbstractStorageFormulation end
+struct EndOfPeriodEnergyTargetOutage <: SSI.AbstractStorageFormulation end
 
 function PSI.add_constraints!(
     container::PSI.OptimizationContainer,
@@ -7,7 +7,7 @@ function PSI.add_constraints!(
     devices::IS.FlattenIteratorWrapper{V},
     model::PSI.DeviceModel{V, W},
     X::Type{<:PM.AbstractPowerModel},
-) where {V <: PSY.Storage, W <: PSI.AbstractStorageFormulation}
+) where {V <: PSY.Storage, W <: SSI.AbstractStorageFormulation}
     device_outage_ub_parameter!(container, T, PSI.ActivePowerInVariable, devices, model, X)
     device_outage_ub_parameter!(container, T, PSI.ActivePowerOutVariable, devices, model, X)
     return

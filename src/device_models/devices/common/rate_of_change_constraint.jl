@@ -29,7 +29,9 @@ function device_linear_rateofchange_outages!(
         PSI.add_constraints_container!(container, T(), V, set_name, time_steps, meta = "up")
     con_down =
         PSI.add_constraints_container!(container, T(), V, set_name, time_steps, meta = "dn")
-    outage_parameter = PSI.get_parameter_array(container, OutageTimeSeriesParameter(), V)
+
+    outage_parameter_container = PSI.get_parameter(container, OutageTimeSeriesParameter(), V)
+
     multiplier =
         PSI.get_parameter_multiplier_array(container, OutageTimeSeriesParameter(), V)
 
@@ -41,14 +43,16 @@ function device_linear_rateofchange_outages!(
         limits = PSY.get_active_power_limits(PSI.get_component(ic))
         ic_power = PSI.get_value(ic)
         @debug "add rate_of_change_constraint" name ic_power
-        @assert (parameters && isa(ic_power, PJ.ParameterRef)) || !parameters
+        @assert (parameters && isa(ic_power, JuMP.VariableRef)) || !parameters
 
         con_up[name, 1] = JuMP.@constraint(
             container.JuMPmodel,
             expr_up[name, 1] - ic_power <=
             ramp_limits.up * minutes_per_period + varstart[name, 1] * limits.min
         )
-        name == "BASTROP_ENERGY_CENTER" && @show (limits, JuMP.value(outage_parameter[name, 1]), JuMP.value(ic_power))
+
+        outage_parameter = PSI.get_parameter_column_refs(outage_parameter_container, name)
+        #name == "BASTROP_ENERGY_CENTER" && @show (limits, JuMP.value(outage_parameter[1]), JuMP.value(ic_power))
         con_down[name, 1] = JuMP.@constraint(
             container.JuMPmodel,
             ic_power - expr_dn[name, 1] <= ramp_limits.down * minutes_per_period + varstop[name, 1] * limits.max
@@ -100,7 +104,8 @@ function add_semicontinuous_ramp_constraints_outages!(
     con_up = PSI.add_constraints_container!(container, T(), V, set_name, time_steps, meta="up")
     con_down =
         PSI.add_constraints_container!(container, T(), V, set_name, time_steps, meta="dn")
-    outage_parameter = PSI.get_parameter_array(container, OutageTimeSeriesParameter(), V)
+
+    outage_parameter_container = PSI.get_parameter(container, OutageTimeSeriesParameter(), V)
 
     for ic in initial_conditions_power
         name = PSI.get_component_name(ic)
@@ -111,7 +116,7 @@ function add_semicontinuous_ramp_constraints_outages!(
         power_limits = PSY.get_active_power_limits(device)
         ic_power = PSI.get_value(ic)
         @debug "add rate_of_change_constraint" name ic_power
-        @assert (parameters && isa(ic_power, PJ.ParameterRef)) || !parameters
+        @assert (parameters && isa(ic_power, JuMP.VariableRef)) || !parameters
         con_up[name, 1] = JuMP.@constraint(
             container.JuMPmodel,
             expr_up[name, 1] - ic_power <=

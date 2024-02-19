@@ -23,7 +23,7 @@ struct SemiContinuousOutageFeedforward <: PSI.AbstractAffectFeedforward
 end
 
 PSI.get_default_parameter_type(::SemiContinuousOutageFeedforward, _) =
-    PSI.OnStatusParameter()
+    PSI.OnStatusParameter
 PSI.get_optimization_container_key(f::SemiContinuousOutageFeedforward) =
     f.optimization_container_key
 
@@ -54,15 +54,15 @@ function has_semicontinuous_outage_feedforward(
     return has_semicontinuous_outage_feedforward(model, PSI.ActivePowerVariable)
 end
 
-function PSI.add_feedforward_arguments!(
+function PSI._add_feedforward_arguments!(
     container::PSI.OptimizationContainer,
-    model::PSI.DeviceModel,
+    model::PSI.DeviceModel{T, U},
     devices::IS.FlattenIteratorWrapper{T},
     ff::SemiContinuousOutageFeedforward,
-) where {T <: PSY.Component}
+) where {T <: PSY.Device, U <: AbstractThermalOutageDispatchFormulation}
     parameter_type = PSI.get_default_parameter_type(ff, T)
     source_key = PSI.get_optimization_container_key(ff)
-    PSI.add_parameters!(container, parameter_type, source_key, model, devices)
+    PSI.add_parameters!(container, parameter_type, ff, model, devices)
     PSI.add_variables!(
         container,
         AuxiliaryOnVariable,
@@ -164,8 +164,9 @@ function _add_sc_outage_feedforward_constraints!(
     )
     array_lb = PSI.get_expression(container, PSI.ActivePowerRangeExpressionLB(), V)
     array_ub = PSI.get_expression(container, PSI.ActivePowerRangeExpressionUB(), V)
-    commitment_param = PSI.get_parameter_array(container, PSI.OnStatusParameter(), V)
-    outage_parameter = PSI.get_parameter_array(container, OutageTimeSeriesParameter(), V)
+
+    commitment_param_containter = PSI.get_parameter(container, PSI.OnStatusParameter(), V)
+    outage_param_containter = PSI.get_parameter(container, OutageTimeSeriesParameter(), V)
 
     commitment_multiplier =
         PSI.get_parameter_multiplier_array(container, PSI.OnStatusParameter(), V)
@@ -230,6 +231,8 @@ function _add_sc_outage_feedforward_constraints!(
         # default set to 1.0, as this implementation doesn't use multiplier
         # commitment_param[name] = PSI.add_parameter(container.JuMPmodel, 1.0)
         name = PSY.get_name(d)
+        commitment_param = PSI.get_parameter_column_refs(commitment_param_containter, name)
+        outage_parameter = PSI.get_parameter_column_refs(outage_param_containter, name)
         for t in time_steps
             commitment_multiplier[name, t] = 1.0
             outage_multiplier[name, t] = 1.0
@@ -251,12 +254,12 @@ function _add_sc_outage_feedforward_constraints!(
             )
             cons_aux_ub[name, t] = JuMP.@constraint(
                 container.JuMPmodel,
-                varon[name, t] <= outage_parameter[name, t] * outage_multiplier[name, t]
+                varon[name, t] <= outage_parameter[t] * outage_multiplier[name, t]
             )
             cons_aux[name, t] = JuMP.@constraint(
                 container.JuMPmodel,
                 varon[name, t] >=
-                outage_parameter[name, t] * outage_multiplier[name, t] +
+                outage_parameter[t] * outage_multiplier[name, t] +
                 commitment_param[name, t] * commitment_multiplier[name, t] - 1.0
             )
             cons_aux_commit_limit[name, t] = JuMP.@constraint(

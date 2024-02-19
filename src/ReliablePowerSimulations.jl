@@ -17,6 +17,7 @@ export RenewableOutageDispatch
 # export SemiContinuousOutagesFF
 #################################################################################
 # Imports
+import HydroPowerSimulations
 import PowerSystems
 import InfrastructureSystems
 import Dates
@@ -24,12 +25,15 @@ import PowerSimulations
 import PowerModels
 import JuMP
 import ParameterJuMP
+import StorageSystemsSimulations
 
+const HSI = HydroPowerSimulations
 const PSY = PowerSystems
 const IS = InfrastructureSystems
 const PM = PowerModels
 const PSI = PowerSimulations
 const PJ = ParameterJuMP
+const SSI = StorageSystemsSimulations
 
 #################################################################################
 # Includes
@@ -37,13 +41,13 @@ include("./core/constraints.jl")
 include("./core/variables.jl")
 include("./core/initial_condition_types.jl")
 include("./core/update_initial_conditions.jl")
-include("./core/feedforward.jl")
 include("./core/parameters.jl")
 
 include("./device_models/devices/thermal_generation.jl")
 include("./device_models/devices/renewable_generation.jl")
 include("./device_models/devices/hydro_generation.jl")
 include("./device_models/devices/storage.jl")
+include("./core/feedforward.jl")
 
 include("device_models/devices/common/duration_constraint.jl")
 include("device_models/devices/common/outage_constraint.jl")

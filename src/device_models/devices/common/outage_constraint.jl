@@ -3,8 +3,8 @@ function device_outage_parameter!(
     T::Type{OutageCommitmentConstraint},
     devices::IS.FlattenIteratorWrapper{V},
     model::PSI.DeviceModel{V, W},
-    X::Type{<:PM.AbstractPowerModel},
-) where {V <: PSY.ThermalGen, W <: Union{ThermalStandardUCOutages, ThermalBasicUCOutages}}
+    network_model::PSI.NetworkModel{X},
+) where {V <: PSY.ThermalGen, W <: Union{ThermalStandardUCOutages, ThermalBasicUCOutages}, X <: PM.AbstractPowerModel}
     time_steps = PSI.get_time_steps(container)
     device_names = [PSY.get_name(d) for d in devices]
     varon = PSI.get_variable(container, PSI.OnVariable(), V)
@@ -37,7 +37,9 @@ function device_outage_parameter!(
         time_steps,
         meta = "start",
     )
-    param = PSI.get_parameter_array(container, OutageTimeSeriesParameter(), V)
+
+    param_container = PSI.get_parameter(container, OutageTimeSeriesParameter(), V)
+
     multiplier =
         PSI.get_parameter_multiplier_array(container, OutageTimeSeriesParameter(), V)
 
@@ -49,24 +51,27 @@ function device_outage_parameter!(
         JuMP.@constraint(container.JuMPmodel, vary <= varon[name, 1])
 
         JuMP.@constraint(container.JuMPmodel, varz <= PSI.get_value(ic))
-        JuMP.@constraint(container.JuMPmodel, vary <= param[name, 1])
 
+        param = PSI.get_parameter_column_refs(param_container, name)
+
+        JuMP.@constraint(container.JuMPmodel, vary <= param[1])
+        
         JuMP.@constraint(
             container.JuMPmodel,
             varz >= PSI.get_value(ic) + varon[name, 1] - 1.0
         )
         JuMP.@constraint(
             container.JuMPmodel,
-            vary >= param[name, 1] + varon[name, 1] - 1.0
+            vary >= param[1] + varon[name, 1] - 1.0
         )
 
         con_on[name, 1] = JuMP.@constraint(
             container.JuMPmodel,
-            varon[name, 1] <= param[name, 1]
+            varon[name, 1] <= param[1]
         )
         con_start[name, 1] = JuMP.@constraint(
             container.JuMPmodel,
-            varstart[name, 1] <= param[name, 1]
+            varstart[name, 1] <= param[1]
         )
         con_stop[name, 1] =
             JuMP.@constraint(container.JuMPmodel, varstop[name, 1] >= varz - vary)
@@ -81,30 +86,30 @@ function device_outage_parameter!(
 
             JuMP.@constraint(
                 container.JuMPmodel,
-                varz <= param[name, t - 1]
+                varz <= param[t - 1]
             )
             JuMP.@constraint(
                 container.JuMPmodel,
-                vary <= param[name, t]
+                vary <= param[t]
             )
 
             JuMP.@constraint(
                 container.JuMPmodel,
-                varz >= param[name, t - 1] + varon[name, t] - 1.0
+                varz >= param[t - 1] + varon[name, t] - 1.0
             )
             JuMP.@constraint(
                 container.JuMPmodel,
-                vary >= param[name, t] + varon[name, t] - 1.0
+                vary >= param[t] + varon[name, t] - 1.0
             )
             con_stop[name, t] =
                 JuMP.@constraint(container.JuMPmodel, varstop[name, t] >= varz - vary)
             con_start[name, t] = JuMP.@constraint(
                 container.JuMPmodel,
-                varstart[name, t] <= param[name, t]
+                varstart[name, t] <= param[t]
             )
             con_on[name, t] = JuMP.@constraint(
                 container.JuMPmodel,
-                varon[name, t] <= param[name, t]
+                varon[name, t] <= param[t]
             )
         end
     end
@@ -117,7 +122,7 @@ function device_outage_ub_parameter!(
     ::Type{S},
     devices::IS.FlattenIteratorWrapper{V},
     model::PSI.DeviceModel{V, W},
-    ::Type{<:PM.AbstractPowerModel},
+    ::PSI.NetworkModel{X},
 ) where {
     V <: Union{
         PSY.HydroGen,
@@ -128,6 +133,7 @@ function device_outage_ub_parameter!(
     },
     S <: PSI.VariableType,
     W <: PSI.AbstractDeviceFormulation,
+    X <: PM.AbstractPowerModel
 }
     time_steps = PSI.get_time_steps(container)
     device_names = [PSY.get_name(d) for d in devices]
@@ -140,15 +146,18 @@ function device_outage_ub_parameter!(
         time_steps,
         meta = "power",
     )
-    param = PSI.get_parameter_array(container, OutageTimeSeriesParameter(), V)
+    
+    param_container = PSI.get_parameter(container, OutageTimeSeriesParameter(), V)
+
     multiplier =
         PSI.get_parameter_multiplier_array(container, OutageTimeSeriesParameter(), V)
 
     for d in devices, t in time_steps
         name = PSY.get_name(d)
+        param = PSI.get_parameter_column_refs(param_container, name)
         constraint[name, t] = JuMP.@constraint(
             container.JuMPmodel,
-            varp[name, t] <= param[name, t] * PSI.M_VALUE
+            varp[name, t] <= param[t] * PSI.M_VALUE
         )
     end
     return
@@ -160,7 +169,7 @@ function device_outage_ub_parameter!(
     ::Type{S},
     devices::IS.FlattenIteratorWrapper{V},
     model::PSI.DeviceModel{V, W},
-    ::Type{<:PM.AbstractPowerModel},
+    ::PSI.NetworkModel{X},
 ) where {
     V <: Union{
         PSY.HydroGen,
@@ -171,6 +180,7 @@ function device_outage_ub_parameter!(
     },
     S <: PSI.ExpressionType,
     W <: PSI.AbstractDeviceFormulation,
+    X <: PM.AbstractActivePowerModel,
 }
     time_steps = PSI.get_time_steps(container)
     device_names = [PSY.get_name(d) for d in devices]
@@ -183,15 +193,16 @@ function device_outage_ub_parameter!(
         time_steps,
         meta = "power",
     )
-    param = PSI.get_parameter_array(container, OutageTimeSeriesParameter(), V)
+    param_container = PSI.get_parameter(container, OutageTimeSeriesParameter(), V)
     multiplier =
         PSI.get_parameter_multiplier_array(container, OutageTimeSeriesParameter(), V)
 
     for d in devices, t in time_steps
         name = PSY.get_name(d)
+        param = PSI.get_parameter_column_refs(param_container, name)
         constraint[name, t] = JuMP.@constraint(
             container.JuMPmodel,
-            varp[name, t] <= param[name, t] * PSI.M_VALUE
+            varp[name, t] <= param[t] * PSI.M_VALUE
         )
     end
     return

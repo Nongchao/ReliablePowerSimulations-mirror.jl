@@ -24,7 +24,7 @@ function PSI._get_initial_conditions_value(
     ::V,
     container::PSI.OptimizationContainer,
 ) where {
-    T <: PSI.InitialCondition{InitialOutageStatus, PJ.ParameterRef},
+    T <: PSI.InitialCondition{InitialOutageStatus, Union{Float64, JuMP.VariableRef}},
     V <: PSI.AbstractDeviceFormulation,
     W <: PSY.Component,
     U <: InitialOutageStatus,
@@ -64,7 +64,7 @@ function PSI.update_initial_conditions!(
     ::Dates.Millisecond,
 ) where {
     T <: PSI.InitialCondition{InitialOutageStatus, S},
-} where {S <: Union{Float64, PJ.ParameterRef}}
+} where {S <: Union{Float64, JuMP.VariableRef}}
     for ic in ics
         if PSI.get_component_type(ic) == PSY.ThermalStandard
             var_val = PSI.get_system_state_value(
@@ -94,7 +94,7 @@ function PSI.update_initial_conditions!(
     ::Dates.Millisecond,
 ) where {
     T <: PSI.InitialCondition{PSI.DeviceStatus, S},
-} where {S <: Union{Float64, PJ.ParameterRef}}
+} where {S <: Union{Float64, JuMP.VariableRef}}
     for ic in ics
         if PSI.get_component_type(ic) == PSY.ThermalStandard
             var_val = PSI.get_system_state_value(
